@@ -1,10 +1,16 @@
 from typing import Optional
-from fastapi import Body, FastAPI, Response, status, HTTPException
+from fastapi import Body, FastAPI, Response, status, HTTPException, Depends
 from pydantic import BaseModel
 from random import randrange
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
+from sqlalchemy.orm import Session
+from . import models
+from .database import engine, get_db
+
+models.Base.metadata.create_all(bind=engine)
+
 app = FastAPI()
 
 class Post(BaseModel):
@@ -28,26 +34,38 @@ my_posts = [{"title": "title of post 1", "content": "content of post 1", "id": 1
             {"title": "favorite foods", "content": "i like pizza", "id": 2}]
 
 
-def find_post(id):
-    for p in my_posts:
-        if p ["id"] == id:
-            return p
+# def find_post(id):
+#     for p in my_posts:
+#         if p ["id"] == id:
+#             return p
         
-def find_index(id):
-    for i, p in enumerate(my_posts):
-        if p['id'] == id:
-            return i
+# def find_index(id):
+#     for i, p in enumerate(my_posts):
+#         if p['id'] == id:
+#             return i
 
 @app.get("/")
 def read_root():
     return {"Message": "Welcome to my API 2.0"}
 
+@app.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    return {"status": "success"}
+
+
+
+
+
+
+
+# get request connected to PGDB
 @app.get("/posts")
 def get_posts():
     cursor.execute("""select * from post""")
     posts = cursor.fetchall()
     return {"data": posts}
 
+# post request connected to PGDB
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 def create_posts(post: Post):
     cursor.execute("""insert into post (title, content, published) values (%s, %s, %s)returning * """,
@@ -56,33 +74,39 @@ def create_posts(post: Post):
     conn.commit()
     return {"data": new_post}
 
+# get request one id connected to PGDB
 @app.get("/posts/{id}")
 def get_post(id : int, response: Response):
-    post = find_post(id)
+    cursor.execute("""select * from post where id = %s""", (str(id)))
+    post = cursor.fetchone()
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} was not found!")
     return {"post": post}
 
+# delete request is connected to PGDB
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id : int):
     #find the index in the array which has the required id
     #my_posts.pop(index)
-    index = find_index(id)
-    if index == None:
+    cursor.execute("""DELETE FROM POST WHERE ID = %s returning *""", (str(id)))
+    deleted_post = cursor.fetchone()
+    conn.commit()
+    if deleted_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} does not exist!")
-    my_posts.pop(index)
+    
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+# update request is connected to PGDB
 @app.put("/posts/{id}")
 def update_post(id : int, post : Post):
+    cursor.execute("""UPDATE POST SET title = %s, content = %s, published = %s WHERE id = %s RETURNING * """, (post.title, post.content, post.published, (str(id))))
+    updated_post = cursor.fetchone()
+    conn.commit()
 
-    index = find_index(id)
-    if index == None:
+    if updated_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} does not exist!")
-    post_dict = post.dict()
-    post_dict['id'] = id
-    my_posts[index] = post_dict
-    return {'data': post_dict}
+
+    return {'data': updated_post}

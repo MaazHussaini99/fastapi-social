@@ -48,30 +48,20 @@ my_posts = [{"title": "title of post 1", "content": "content of post 1", "id": 1
 def read_root():
     return {"Message": "Welcome to my API 2.0"}
 
-@app.get("/sqlalchemy")
-def test_posts(db: Session = Depends(get_db)):
-    return {"status": "success"}
-
-
-
-
-
-
-
 # get request connected to PGDB
 @app.get("/posts")
-def get_posts():
-    cursor.execute("""select * from post""")
-    posts = cursor.fetchall()
+def get_posts(db: Session = Depends(get_db)):
+    posts = db.query(models.Post).all()
     return {"data": posts}
 
 # post request connected to PGDB
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post):
-    cursor.execute("""insert into post (title, content, published) values (%s, %s, %s)returning * """,
-                   (post.title, post.content, post.published))
-    new_post = cursor.fetchone()
-    conn.commit()
+def create_posts(post: Post, db: Session = Depends(get_db)):
+    # **post.dict() automatically unpacks the fields
+    new_post = models.Post(**post.dict())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
     return {"data": new_post}
 
 # get request one id connected to PGDB

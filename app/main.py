@@ -1,22 +1,15 @@
-from typing import Optional
+from typing import List
 from fastapi import Body, FastAPI, Response, status, HTTPException, Depends
-from pydantic import BaseModel
-from random import randrange
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
 from sqlalchemy.orm import Session
-from . import models
+from . import models, schemas
 from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
-class Post(BaseModel):
-    title: str
-    content: str
-    published : bool = True
 
 while True:
     try:
@@ -49,23 +42,23 @@ def read_root():
     return {"Message": "Welcome to my API 2.0"}
 
 # get request connected to PGDB
-@app.get("/posts")
+@app.get("/posts", response_model=List[schemas.Post])
 def get_posts(db: Session = Depends(get_db)):
     posts = db.query(models.Post).all()
-    return {"data": posts}
+    return posts
 
 # post request connected to PGDB
-@app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post, db: Session = Depends(get_db)):
+@app.post("/posts", status_code=status.HTTP_201_CREATED, response_model=schemas.Post)
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
     # **post.dict() automatically unpacks the fields
     new_post = models.Post(**post.dict())
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
-    return {"data": new_post}
+    return new_post
 
 # get request one id connected to PGDB
-@app.get("/posts/{id}")
+@app.get("/posts/{id}", response_model=schemas.Post)
 def get_post(id : int, db: Session = Depends(get_db)):
     # cursor.execute("""select * from post where id = %s""", (str(id)))
     # post = cursor.fetchone()
@@ -73,32 +66,40 @@ def get_post(id : int, db: Session = Depends(get_db)):
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} was not found!")
-    return {"post-detail": post}
+    return post
 
 # delete request is connected to PGDB
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id : int):
+def delete_post(id : int, db: Session = Depends(get_db)):
     #find the index in the array which has the required id
     #my_posts.pop(index)
-    cursor.execute("""DELETE FROM POST WHERE ID = %s returning *""", (str(id)))
-    deleted_post = cursor.fetchone()
-    conn.commit()
-    if deleted_post == None:
+    # cursor.execute("""DELETE FROM POST WHERE ID = %s returning *""", (str(id)))
+    # deleted_post = cursor.fetchone()
+    # conn.commit()
+
+    post = db.query(models.Post).filter(models.Post.id == id)
+    if post.first() == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} does not exist!")
     
+    post.delete(synchronize_session=False)
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # update request is connected to PGDB
-@app.put("/posts/{id}")
-def update_post(id : int, post : Post):
-    cursor.execute("""UPDATE POST SET title = %s, content = %s, 
-    published = %s WHERE id = %s RETURNING * """, (post.title, post.content, post.published, (str(id))))
-    updated_post = cursor.fetchone()
-    conn.commit()
+@app.put("/posts/{id}", response_model=schemas.Post)
+def update_post(id : int, update_post : schemas.PostCreate, db: Session = Depends(get_db)):
+    # cursor.execute("""UPDATE POST SET title = %s, content = %s, 
+    # published = %s WHERE id = %s RETURNING * """, (post.title, post.content, post.published, (str(id))))
+    # updated_post = cursor.fetchone()
+    # conn.commit()
 
-    if updated_post == None:
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    post = post_query.first()
+    if post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"post with id: {id} does not exist!")
-
-    return {'data': updated_post}
+                            detail=f"post with id: {id} was not found!")
+    
+    post_query.update(update_post.dict(), synchronize_session=False)
+    db.commit()
+    return post_query.first()

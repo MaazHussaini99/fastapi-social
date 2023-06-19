@@ -66,13 +66,14 @@ def create_posts(post: Post, db: Session = Depends(get_db)):
 
 # get request one id connected to PGDB
 @app.get("/posts/{id}")
-def get_post(id : int, response: Response):
-    cursor.execute("""select * from post where id = %s""", (str(id)))
-    post = cursor.fetchone()
+def get_post(id : int, db: Session = Depends(get_db)):
+    # cursor.execute("""select * from post where id = %s""", (str(id)))
+    # post = cursor.fetchone()
+    post = db.query(models.Post).filter(models.Post.id == id).first()
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id: {id} was not found!")
-    return {"post": post}
+    return {"post-detail": post}
 
 # delete request is connected to PGDB
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)

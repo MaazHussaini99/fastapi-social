@@ -4,7 +4,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
 from sqlalchemy.orm import Session
-from . import models, schemas
+from . import models, schemas, utils
 from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
@@ -103,3 +103,20 @@ def update_post(id : int, update_post : schemas.PostCreate, db: Session = Depend
     post_query.update(update_post.dict(), synchronize_session=False)
     db.commit()
     return post_query.first()
+
+
+# Users API Paths
+# post request for create user
+@app.post("/users", status_code=status.HTTP_201_CREATED, response_model=schemas.UserOut)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+
+    # hash the password
+    hashed_password = utils.hash(user.password)
+    user.password = hashed_password
+    new_user = models.User(**user.dict())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+# paused at 6:11:08 on 6/19/23

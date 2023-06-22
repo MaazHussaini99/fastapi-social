@@ -1,4 +1,4 @@
-from .. import models, schemas
+from .. import models, schemas, oauth2
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -12,14 +12,15 @@ router = APIRouter(
 
 # get request connected to PGDB
 @router.get("/", response_model=List[schemas.Post])
-def get_posts(db: Session = Depends(get_db)):
+def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     posts = db.query(models.Post).all()
     return posts
 
 # post request connected to PGDB
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.Post)
-def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     # **post.dict() automatically unpacks the fields
+    print(current_user.email)
     new_post = models.Post(**post.dict())
     db.add(new_post)
     db.commit()
@@ -28,7 +29,7 @@ def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
 
 # get request one id connected to PGDB
 @router.get("/{id}", response_model=schemas.Post)
-def get_post(id : int, db: Session = Depends(get_db)):
+def get_post(id : int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("""select * from post where id = %s""", (str(id)))
     # post = cursor.fetchone()
     post = db.query(models.Post).filter(models.Post.id == id).first()
@@ -39,7 +40,7 @@ def get_post(id : int, db: Session = Depends(get_db)):
 
 # delete request is connected to PGDB
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id : int, db: Session = Depends(get_db)):
+def delete_post(id : int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     #find the index in the array which has the required id
     #my_posts.pop(index)
     # cursor.execute("""DELETE FROM POST WHERE ID = %s returning *""", (str(id)))
@@ -57,7 +58,7 @@ def delete_post(id : int, db: Session = Depends(get_db)):
 
 # update request is connected to PGDB
 @router.put("/{id}", response_model=schemas.Post)
-def update_post(id : int, update_post : schemas.PostCreate, db: Session = Depends(get_db)):
+def update_post(id : int, update_post : schemas.PostCreate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("""UPDATE POST SET title = %s, content = %s, 
     # published = %s WHERE id = %s RETURNING * """, (post.title, post.content, post.published, (str(id))))
     # updated_post = cursor.fetchone()

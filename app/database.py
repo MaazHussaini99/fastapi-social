@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 SQLALCHEMY_DATABASE_URL = 'postgresql://postgres:1962@localhost/fastapi-social'
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
+ 
 Base = declarative_base()
 
 def get_db():
@@ -14,3 +14,16 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# while True:
+#     try:
+#         conn = psycopg2.connect(host='localhost', database='fastapi-social', 
+#                             user='postgres', password='1962', cursor_factory=RealDictCursor)
+#         cursor = conn.cursor()
+#         print("DB Conn was successful!")
+#         break
+#     except Exception as error:
+#         print("Connecting to DB failed")
+#         print("Error", error)
+#         time.sleep(2)

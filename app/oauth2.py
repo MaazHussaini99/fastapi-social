@@ -47,6 +47,3 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session =  Depends
     token = verify_access_token(token, credential_exception)
     user = db.query(models.User).filter(models.User.id == token.id).first()
     return user
-
-
-# paused at 9:21:08 on 6/24/23
